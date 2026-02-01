@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Camera Attention Control</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    /* Kamera preview */
+    #camera {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      width: 240px;
+      border-radius: 12px;
+      border: 2px solid #00ffcc;
+      z-index: 10;
+    }
+
+    /* Ogohlantiruvchi video */
+    #warningVideo {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 5;
+      display: none;
+    }
+
+    /* Status text */
+    #status {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      padding: 10px 14px;
+      background: rgba(0, 0, 0, 0.65);
+      color: #00ffcc;
+      border-radius: 8px;
+      z-index: 20;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="status">Loading camera...</div>
+
+  <!-- Kamera -->
+  <video id="camera" autoplay muted playsinline></video>
+
+  <!-- Ogohlantiruvchi video -->
+  <video id="warningVideo" loop>
+    <!-- XOHAGAN VIDEONGNI QO'Y -->
+    <source src="horormp4.mp4" type="video/mp4">
+  </video>
+
+  <!-- MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+  <script>
+    const cameraVideo = document.getElementById("camera");
+    const warningVideo = document.getElementById("warningVideo");
+    const statusText = document.getElementById("status");
+
+    // FaceMesh sozlamalari
+    const faceMesh = new FaceMesh({
+      locateFile: file =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
+
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    // Natijalar
+    faceMesh.onResults(results => {
+      if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+        showWarning("Face not detected");
+        return;
+      }
+
+      const landmarks = results.multiFaceLandmarks[0];
+
+      // Burun uchi (eng ishonchli nuqta)
+      const nose = landmarks[1];
+
+      // Kamera markaziga nisbatan tekshiruv
+      const threshold = 0.08;
+      const isLooking =
+        nose.x > 0.5 - threshold &&
+        nose.x < 0.5 + threshold;
+
+      if (isLooking) {
+        hideWarning("Looking at camera");
+      } else {
+        showWarning("Not looking at camera");
+      }
+    });
+
+    function showWarning(text) {
+      statusText.innerText = text;
+      warningVideo.style.display = "block";
+      if (warningVideo.paused) warningVideo.play();
+    }
+
+    function hideWarning(text) {
+      statusText.innerText = text;
+      warningVideo.style.display = "none";
+      warningVideo.pause();
+    }
+
+    // Kamera ishga tushirish
+    const camera = new Camera(cameraVideo, {
+      onFrame: async () => {
+        await faceMesh.send({ image: cameraVideo });
+      },
+      width: 640,
+      height: 480
+    });
+
+    camera.start();
+  </script>
+
+</body>
+</html>
